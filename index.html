@@ -434,8 +434,9 @@
       <input type="datetime-local" id="startDuty" step="600">
     </div>
     <div class="field" style="margin-bottom:0;">
-      <label for="actualDutyEnd">End of duty (optional — blank = 12:00 max)</label>
+      <label for="actualDutyEnd">End of duty</label>
       <input type="datetime-local" id="actualDutyEnd" step="600">
+      <div class="note" style="margin-top:6px;">Max duty end (+12:00): <span class="rvalue amber" id="normalDutyEnd" style="font-size:13px;">—</span></div>
     </div>
   </div>
 
@@ -447,20 +448,18 @@
       <span class="date-part" id="nextDutyDate">—</span>
       <span id="nextDutyTime">—:—</span>
     </div>
-    <div class="note" id="secondaryLine" style="margin-top:2px;"></div>
-    <div class="note" id="resultNote">Enter a start of duty time above to begin.</div>
+  </div>
+
+  <div class="panel" id="breakGridPanel">
+    <div class="mode-label" style="margin-bottom:10px;">Split duty — break length options</div>
+    <div id="breakGridWrap"></div>
   </div>
 
   <details class="panel" style="padding:14px 20px;">
     <summary style="cursor:pointer; font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); list-style-position: inside;">Details</summary>
     <div style="margin-top:16px;">
-      <div class="field">
-        <label>Theoretical max duty end (+12:00)</label>
-        <div class="readout">
-          <span class="rlabel">Auto-calculated</span>
-          <span class="rvalue amber" id="normalDutyEnd">—</span>
-        </div>
-      </div>
+      <div class="note" id="secondaryLine" style="margin-bottom:6px;"></div>
+      <div class="note" id="resultNote" style="margin-bottom:14px;">Enter a start of duty time above to begin.</div>
       <div class="field">
         <label>Max flight time (Table 1, two pilots)</label>
         <div class="readout">
@@ -483,20 +482,10 @@
           <span>Next duty</span>
         </div>
       </div>
+      <div class="note" style="margin-top:14px;">Split duty: the table shows the final duty end if this duty is split, for a break taken after the entered end of duty. 🛏 marked from 6:00 breaks up (the regulation requires a bed for breaks over 6:00; under that, a quiet private place suffices — 7.2). The break excludes time for immediate post-flight and pre-flight duties. Breaks under 3:00 earn no extension. Every extended duty exceeds 11 hours, so 8(2)(a)(iii) applies — this app applies 11:00 rest after such duties (an app convention; the regulation defers the figure to the operator's scheme).</div>
+      <div class="note" style="margin-top:10px;">Covers Part 127 Table 1 (two-pilot helicopter FDP), 7.2 split duty extension, and 8(2)(a) rest periods. "Local night" is auto-detected using SACAA's own definition (Part 127.1, inserted by SA-CATS 2/2025, w.e.f. 20 June 2025): a period of 8 hours falling between 22:00 and 08:00 local time.</div>
     </div>
   </details>
-
-  <div class="panel" id="breakGridPanel">
-    <div class="mode-label" style="margin-bottom:10px;">Split duty — break length options</div>
-    <div class="note" style="margin-bottom:10px;">If this duty is split, here's the resulting final duty end for a break taken after the duty end above.</div>
-    <div id="breakGridWrap"></div>
-    <div class="note" style="margin-top:10px;">🛏 breaks over 6:00 require a bed; up to 6:00 a quiet private place suffices (7.2). The break excludes time for immediate post-flight and pre-flight duties. Breaks under 3:00 earn no extension. Every extended duty here exceeds 11 hours, so 8(2)(a)(iii) applies — an additional rest period per your operator's approved scheme is required beyond the standard 9/10 hours.</div>
-  </div>
-
-  <footer>
-    Covers Part 127 Table 1 (two-pilot helicopter FDP), 7.2 split duty extension, and 8(2)(a) rest periods.<br>
-    "Local night" for 8(2)(a) is auto-detected using SACAA's own definition (Part 127.1, inserted by SA-CATS 2/2025, w.e.f. 20 June 2025): a period of 8 hours falling between 22:00 and 08:00 local time.
-  </footer>
 
 </div>
 
@@ -680,11 +669,17 @@
     }
 
     const actualDutyHours = (dutyEnd - start) / 3600000;
-    if (actualDutyHours > 11){
-      showWarn('Duty period exceeds 11 hours. Per 127.8(2)(a)(iii), the standard 9/10 hour rest is not enough here — an additional rest period must be provided under your operator\'s approved scheme.');
+
+    let { nextStart: nextDutyStart, restHours, localNight } = computeRestForDutyEnd(dutyEnd);
+
+    // 8(2)(a)(iii): duty over 11h needs an additional rest period per the operator's
+    // scheme (no fixed number in the regulation). This app's convention: 11:00 rest.
+    const extendedRest = actualDutyHours > 11;
+    if (extendedRest){
+      restHours = 11;
+      nextDutyStart = new Date(dutyEnd.getTime() + 11 * 3600 * 1000);
     }
 
-    const { nextStart: nextDutyStart, restHours, localNight } = computeRestForDutyEnd(dutyEnd);
     localNightReadout.textContent = (localNight ? 'Yes' : 'No') + ' · ' + fmtHM(restHours) + ' rest';
     localNightReadout.className = 'rvalue ' + (localNight ? 'teal' : 'amber');
 
@@ -694,7 +689,9 @@
     nextDutyTimeEl.textContent = primary.timeStr;
     secondaryLineEl.textContent = fmtHM(restHours) + ' rest from duty end (' + fmtDateTime(dutyEnd).timeStr + ')';
 
-    resultNote.textContent = fmtHM(restHours) + ' minimum rest (Part 127.8(2)(a)) applied after a ' + fmtHM(actualDutyHours) + ' two-pilot duty period' + (actualEnd ? ' (actual)' : ' (12:00 max, Table 1)') + ' — local night per SACAA\'s Part 127.1 definition.';
+    resultNote.textContent = extendedRest
+      ? '11:00 rest applied because this duty exceeds 11 hours — 127.8(2)(a)(iii) requires additional rest beyond the standard 9/10h; the 11:00 figure is this app\'s convention, not a SACAA number.'
+      : fmtHM(restHours) + ' minimum rest (Part 127.8(2)(a)) applied after a ' + fmtHM(actualDutyHours) + ' two-pilot duty period' + (actualEnd ? ' (actual)' : ' (12:00 max, Table 1)') + ' — local night per SACAA\'s Part 127.1 definition.';
 
     const dutyHours = (dutyEnd - start) / 3600000;
     setGauge([
@@ -719,9 +716,9 @@
         // second segment — the row is not a viable split.
         const invalid = start2 >= dutyEndFinal;
 
-        // 7.2: a break of more than 6 consecutive hours requires a bed; up to 6h a quiet
-        // private place suffices.
-        const bedReq = breakHours > 6;
+        // 7.2: a bed is required for breaks over 6h (quiet private place suffices up to 6h).
+        // This app marks the bed from 6:00 up — slightly stricter than the text, by choice.
+        const bedReq = breakHours >= 6;
 
         rows += '<tr class="' + (invalid ? 'row-invalid' : '') + '">' +
           '<td class="dim">' + fmtShort(start2, start) + '</td>' +
