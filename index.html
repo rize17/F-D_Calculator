@@ -220,39 +220,26 @@
     margin-bottom: 6px;
   }
 
-  .dt-row {
-    display: flex;
-    gap: 8px;
-  }
-
-  .dt-row input[type="date"] {
-    flex: 1.3;
-    min-width: 0;
-  }
-
-  .dt-row input[type="time"] {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .field input[type="date"],
-  .field input[type="time"] {
+  .field input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
     display: block;
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    min-height: 44px;
     box-sizing: border-box;
     background: var(--panel-raised);
     border: 1px solid var(--line);
     border-radius: 6px;
-    padding: 10px 8px;
+    padding: 10px 12px;
     color: var(--text);
     font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
+    font-size: 14px;
+    text-align: left;
   }
 
-  .field input[type="date"]:focus,
-  .field input[type="time"]:focus {
+  .field input[type="datetime-local"]:focus {
     outline: 2px solid var(--amber);
     outline-offset: 1px;
   }
@@ -411,6 +398,13 @@
   .break-grid td.teal { color: var(--teal); font-weight: 700; }
   .break-grid td.dim { color: var(--text-dim); }
 
+  .break-grid tr.row-invalid td {
+    text-decoration: line-through;
+    color: var(--text-dim);
+    opacity: 0.45;
+    font-weight: 400;
+  }
+
   footer {
     text-align: center;
     font-size: 11px;
@@ -436,11 +430,8 @@
   <div class="panel">
     <div class="field-group">
       <div class="field">
-        <label for="startDutyDate">Start of duty</label>
-        <div class="dt-row">
-          <input type="date" id="startDutyDate">
-          <input type="time" id="startDutyTime">
-        </div>
+        <label for="startDuty">Start of duty</label>
+        <input type="datetime-local" id="startDuty" step="600">
       </div>
 
       <div class="field">
@@ -451,11 +442,15 @@
         </div>
       </div>
       <div class="field">
-        <label for="actualDutyEndDate">Actual duty end (optional — leave blank to use the 12:00 max)</label>
-        <div class="dt-row">
-          <input type="date" id="actualDutyEndDate">
-          <input type="time" id="actualDutyEndTime">
+        <label>Max flight time (Table 1, two pilots)</label>
+        <div class="readout">
+          <span class="rlabel" id="maxFlightLabel">From local start time band</span>
+          <span class="rvalue amber" id="maxFlightReadout">—</span>
         </div>
+      </div>
+      <div class="field">
+        <label for="actualDutyEnd">Actual duty end (optional — leave blank to use the 12:00 max)</label>
+        <input type="datetime-local" id="actualDutyEnd" step="600">
       </div>
     </div>
 
@@ -495,6 +490,7 @@
     <div class="mode-label" style="margin-bottom:10px;">Split duty — break length options</div>
     <div class="note" style="margin-bottom:10px;">If this duty is split, here's the resulting final duty end for a break taken after the duty end above.</div>
     <div id="breakGridWrap"></div>
+    <div class="note" style="margin-top:10px;">🛏 breaks over 6:00 require a bed; up to 6:00 a quiet private place suffices (7.2). The break excludes time for immediate post-flight and pre-flight duties. Breaks under 3:00 earn no extension. Every extended duty here exceeds 11 hours, so 8(2)(a)(iii) applies — an additional rest period per your operator's approved scheme is required beyond the standard 9/10 hours.</div>
   </div>
 
   <footer>
@@ -506,12 +502,12 @@
 
 <script>
 (function(){
-  const startDutyDateEl = document.getElementById('startDutyDate');
-  const startDutyTimeEl = document.getElementById('startDutyTime');
-  const actualDutyEndDateEl = document.getElementById('actualDutyEndDate');
-  const actualDutyEndTimeEl = document.getElementById('actualDutyEndTime');
+  const startDutyEl = document.getElementById('startDuty');
+  const actualDutyEndEl = document.getElementById('actualDutyEnd');
 
   const normalDutyEndEl = document.getElementById('normalDutyEnd');
+  const maxFlightReadoutEl = document.getElementById('maxFlightReadout');
+  const maxFlightLabelEl = document.getElementById('maxFlightLabel');
   const breakGridWrapEl = document.getElementById('breakGridWrap');
 
   const localNightReadout = document.getElementById('localNightReadout');
@@ -524,20 +520,27 @@
   const warnBox = document.getElementById('warnBox');
   const gaugeTrack = document.getElementById('gaugeTrack');
 
-  function combinedDateTime(dateEl, timeEl){
-    if (!dateEl.value || !timeEl.value) return null;
-    const d = new Date(dateEl.value + 'T' + timeEl.value);
+  function parseDT(el){
+    if (!el.value) return null;
+    const d = new Date(el.value);
     return isNaN(d.getTime()) ? null : d;
   }
 
-  [startDutyDateEl, startDutyTimeEl, actualDutyEndDateEl, actualDutyEndTimeEl].forEach(el => el.addEventListener('input', compute));
+  function nowLocalISO(){
+    const n = new Date();
+    n.setSeconds(0, 0);
+    n.setMinutes(Math.round(n.getMinutes() / 10) * 10); // snap to 10-min intervals
+    const pad = v => String(v).padStart(2,'0');
+    return n.getFullYear() + '-' + pad(n.getMonth()+1) + '-' + pad(n.getDate()) +
+           'T' + pad(n.getHours()) + ':' + pad(n.getMinutes());
+  }
+
+  [startDutyEl, actualDutyEndEl].forEach(el => el.addEventListener('input', compute));
 
   const resetBtn = document.getElementById('resetBtn');
   resetBtn.addEventListener('click', () => {
-    startDutyDateEl.value = '';
-    startDutyTimeEl.value = '';
-    actualDutyEndDateEl.value = '';
-    actualDutyEndTimeEl.value = '';
+    startDutyEl.value = nowLocalISO();
+    actualDutyEndEl.value = '';
     compute();
   });
 
@@ -599,11 +602,24 @@
     warnBox.innerHTML = '';
   }
 
+  // 8(2)(a) gives two alternatives: (i) at least 9 consecutive hours including a local
+  // night, or (ii) 10 consecutive hours. "At least" means (i) can also be satisfied by a
+  // rest longer than 9h that reaches the required night coverage — e.g. duty ending 20:30
+  // qualifies with a 9.5h rest to 06:00, which beats the 10h option by 30 minutes. So we
+  // take the earlier of: (a) the earliest time >= dutyEnd+9h at which 8h of 22:00–08:00
+  // coverage is achieved, and (b) dutyEnd+10h.
   function computeRestForDutyEnd(dutyEnd){
-    const nineHourWindow = new Date(dutyEnd.getTime() + 9 * 3600 * 1000);
-    const overlapAt9 = nightOverlapHours(dutyEnd, nineHourWindow);
-    if (overlapAt9 >= 8) return { restHours: 9, localNight: true };
-    return { restHours: 10, localNight: false };
+    const tenHourEnd = new Date(dutyEnd.getTime() + 10 * 3600 * 1000);
+    const nineHourEnd = new Date(dutyEnd.getTime() + 9 * 3600 * 1000);
+
+    // Scan minute-by-minute from +9h up to +10h for the first moment (i) is satisfied.
+    for (let t = nineHourEnd.getTime(); t < tenHourEnd.getTime(); t += 60000){
+      if (nightOverlapHours(dutyEnd, new Date(t)) >= 8){
+        const restHours = (t - dutyEnd.getTime()) / 3600000;
+        return { nextStart: new Date(t), restHours, localNight: true };
+      }
+    }
+    return { nextStart: tenHourEnd, restHours: 10, localNight: false };
   }
 
   function dayOffset(d, refDate){
@@ -619,10 +635,12 @@
 
   function compute(){
     hideWarn();
-    const start = combinedDateTime(startDutyDateEl, startDutyTimeEl);
+    const start = parseDT(startDutyEl);
 
     if (!start){
       normalDutyEndEl.textContent = '—';
+      maxFlightReadoutEl.textContent = '—';
+      maxFlightLabelEl.textContent = 'From local start time band';
       breakGridWrapEl.innerHTML = '';
       nextDutyDateEl.textContent = '—';
       nextDutyTimeEl.textContent = '—:—';
@@ -638,8 +656,14 @@
     const theoreticalEnd = new Date(start.getTime() + 12 * 3600 * 1000);
     normalDutyEndEl.textContent = fmtDateTime(theoreticalEnd).dateStr + ' ' + fmtDateTime(theoreticalEnd).timeStr;
 
+    // Table 1, two pilots: max flight time 8h for local start 06:00–17:59, 7h for 18:00–05:59.
+    const startMins = start.getHours() * 60 + start.getMinutes();
+    const dayBand = startMins >= 360 && startMins < 1080; // 06:00–17:59
+    maxFlightReadoutEl.textContent = dayBand ? '8:00' : '7:00';
+    maxFlightLabelEl.textContent = dayBand ? 'Start 06:00–17:59 band' : 'Start 18:00–05:59 band';
+
     // Normal duty end: actual if entered (and valid), else the 12h theoretical max.
-    const actualEnd = combinedDateTime(actualDutyEndDateEl, actualDutyEndTimeEl);
+    const actualEnd = parseDT(actualDutyEndEl);
     let dutyEnd;
     if (actualEnd){
       if (actualEnd <= start){
@@ -660,19 +684,17 @@
       showWarn('Duty period exceeds 11 hours. Per 127.8(2)(a)(iii), the standard 9/10 hour rest is not enough here — an additional rest period must be provided under your operator\'s approved scheme.');
     }
 
-    const { restHours, localNight } = computeRestForDutyEnd(dutyEnd);
-    localNightReadout.textContent = (localNight ? 'Yes' : 'No') + ' · ' + restHours + ':00 rest';
+    const { nextStart: nextDutyStart, restHours, localNight } = computeRestForDutyEnd(dutyEnd);
+    localNightReadout.textContent = (localNight ? 'Yes' : 'No') + ' · ' + fmtHM(restHours) + ' rest';
     localNightReadout.className = 'rvalue ' + (localNight ? 'teal' : 'amber');
-
-    const nextDutyStart = new Date(dutyEnd.getTime() + restHours * 3600 * 1000);
 
     resultTitleEl.textContent = 'Earliest next duty start';
     const primary = fmtDateTime(nextDutyStart);
     nextDutyDateEl.textContent = primary.dateStr;
     nextDutyTimeEl.textContent = primary.timeStr;
-    secondaryLineEl.textContent = '';
+    secondaryLineEl.textContent = fmtHM(restHours) + ' rest from duty end (' + fmtDateTime(dutyEnd).timeStr + ')';
 
-    resultNote.textContent = restHours + ':00 minimum rest (Part 127.8(2)(a)) applied after a ' + fmtHM(actualDutyHours) + ' two-pilot duty period' + (actualEnd ? ' (actual)' : ' (12:00 max, Table 1)') + ' — local night per SACAA\'s Part 127.1 definition.';
+    resultNote.textContent = fmtHM(restHours) + ' minimum rest (Part 127.8(2)(a)) applied after a ' + fmtHM(actualDutyHours) + ' two-pilot duty period' + (actualEnd ? ' (actual)' : ' (12:00 max, Table 1)') + ' — local night per SACAA\'s Part 127.1 definition.';
 
     const dutyHours = (dutyEnd - start) / 3600000;
     setGauge([
@@ -693,9 +715,17 @@
         const extensionHours = breakHours / 2; // all options are within the 3–10h band
         const dutyEndFinal = new Date(start.getTime() + (12 + extensionHours) * 3600 * 1000);
 
-        rows += '<tr>' +
+        // If duty 2 would start at or after the extended duty end, there's no usable
+        // second segment — the row is not a viable split.
+        const invalid = start2 >= dutyEndFinal;
+
+        // 7.2: a break of more than 6 consecutive hours requires a bed; up to 6h a quiet
+        // private place suffices.
+        const bedReq = breakHours > 6;
+
+        rows += '<tr class="' + (invalid ? 'row-invalid' : '') + '">' +
           '<td class="dim">' + fmtShort(start2, start) + '</td>' +
-          '<td class="amber">' + breakHours + ':00</td>' +
+          '<td class="amber">' + breakHours + ':00' + (bedReq ? ' <span style="color:var(--text-dim); font-weight:400;">🛏</span>' : '') + '</td>' +
           '<td class="teal">' + fmtShort(dutyEndFinal, start) + '</td>' +
           '</tr>';
       });
@@ -707,6 +737,7 @@
     }
   }
 
+  startDutyEl.value = nowLocalISO();
   compute();
 })();
 </script>
