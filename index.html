@@ -427,50 +427,15 @@
     <button id="resetBtn" type="button" style="flex-shrink:0; background:var(--panel-raised); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; padding:8px 12px; cursor:pointer;">Reset</button>
   </div>
 
-  <div class="panel">
-    <div class="field-group">
-      <div class="field">
-        <label for="startDuty">Start of duty</label>
-        <input type="datetime-local" id="startDuty" step="600">
-      </div>
-
-      <div class="field">
-        <label>Theoretical max duty end (+12:00)</label>
-        <div class="readout">
-          <span class="rlabel">Auto-calculated</span>
-          <span class="rvalue amber" id="normalDutyEnd">—</span>
-        </div>
-      </div>
-      <div class="field">
-        <label>Max flight time (Table 1, two pilots)</label>
-        <div class="readout">
-          <span class="rlabel" id="maxFlightLabel">From local start time band</span>
-          <span class="rvalue amber" id="maxFlightReadout">—</span>
-        </div>
-      </div>
-      <div class="field">
-        <label for="actualDutyEnd">Actual duty end (optional — leave blank to use the 12:00 max)</label>
-        <input type="datetime-local" id="actualDutyEnd" step="600">
-      </div>
+  <div class="panel" style="border-color: var(--amber);">
+    <div class="mode-label" style="margin-bottom:14px; color: var(--amber);">Enter your times</div>
+    <div class="field">
+      <label for="startDuty">Start of duty</label>
+      <input type="datetime-local" id="startDuty" step="600">
     </div>
-
-    <div class="divider"></div>
-
-    <div class="field" id="localNightField">
-      <label>Local night in rest period</label>
-      <div class="readout">
-        <span class="rlabel" id="nightWindowLabel">Detected from duty end + rest window</span>
-        <span class="rvalue" id="localNightReadout">—</span>
-      </div>
-    </div>
-
-    <div class="gauge" id="gaugeWrap">
-      <div class="gauge-track" id="gaugeTrack"></div>
-      <div class="gauge-labels">
-        <span>Start</span>
-        <span>Duty end</span>
-        <span>Next duty</span>
-      </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="actualDutyEnd">End of duty (optional — blank = 12:00 max)</label>
+      <input type="datetime-local" id="actualDutyEnd" step="600">
     </div>
   </div>
 
@@ -485,6 +450,41 @@
     <div class="note" id="secondaryLine" style="margin-top:2px;"></div>
     <div class="note" id="resultNote">Enter a start of duty time above to begin.</div>
   </div>
+
+  <details class="panel" style="padding:14px 20px;">
+    <summary style="cursor:pointer; font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); list-style-position: inside;">Details</summary>
+    <div style="margin-top:16px;">
+      <div class="field">
+        <label>Theoretical max duty end (+12:00)</label>
+        <div class="readout">
+          <span class="rlabel">Auto-calculated</span>
+          <span class="rvalue amber" id="normalDutyEnd">—</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Max flight time (Table 1, two pilots)</label>
+        <div class="readout">
+          <span class="rlabel" id="maxFlightLabel">From local start time band</span>
+          <span class="rvalue amber" id="maxFlightReadout">—</span>
+        </div>
+      </div>
+      <div class="field" id="localNightField">
+        <label>Local night in rest period</label>
+        <div class="readout">
+          <span class="rlabel" id="nightWindowLabel">Detected from duty end + rest window</span>
+          <span class="rvalue" id="localNightReadout">—</span>
+        </div>
+      </div>
+      <div class="gauge" id="gaugeWrap">
+        <div class="gauge-track" id="gaugeTrack"></div>
+        <div class="gauge-labels">
+          <span>Start</span>
+          <span>Duty end</span>
+          <span>Next duty</span>
+        </div>
+      </div>
+    </div>
+  </details>
 
   <div class="panel" id="breakGridPanel">
     <div class="mode-label" style="margin-bottom:10px;">Split duty — break length options</div>
