@@ -436,14 +436,21 @@
     <div class="field" style="margin-bottom:0;">
       <label for="actualDutyEnd">End of duty</label>
       <input type="datetime-local" id="actualDutyEnd" step="600">
-      <div class="note" style="margin-top:6px;">Max duty end (+12:00): <span class="rvalue amber" id="normalDutyEnd" style="font-size:13px;">—</span></div>
     </div>
   </div>
 
   <div class="warn" id="warnBox" style="display:none;"></div>
 
   <div class="panel result-panel" id="resultPanel">
-    <div class="result-title" id="resultTitle">Earliest next duty start</div>
+    <div class="mode-label" id="resultHeading" style="margin-bottom:14px;">No rest taken</div>
+    <div id="maxEndBlock">
+      <div class="result-title" style="color: var(--amber);">(12h) Duty end</div>
+      <div class="big-readout" style="margin-bottom:18px;">
+        <span class="date-part" id="normalDutyEndDate">—</span>
+        <span id="normalDutyEndTime" style="color: var(--amber);">—:—</span>
+      </div>
+    </div>
+    <div class="result-title" id="resultTitle" style="color: var(--text);">Earliest next duty start</div>
     <div class="big-readout">
       <span class="date-part" id="nextDutyDate">—</span>
       <span id="nextDutyTime">—:—</span>
@@ -451,7 +458,7 @@
   </div>
 
   <div class="panel" id="breakGridPanel">
-    <div class="mode-label" style="margin-bottom:10px;">Split duty — break length options</div>
+    <div class="mode-label" id="splitHeading" style="margin-bottom:10px;">Rest taken — split duty</div>
     <div id="breakGridWrap"></div>
   </div>
 
@@ -482,7 +489,7 @@
           <span>Next duty</span>
         </div>
       </div>
-      <div class="note" style="margin-top:14px;">Split duty: the table shows the final duty end if this duty is split, for a break taken after the entered end of duty. 🛏 marked from 6:00 breaks up (the regulation requires a bed for breaks over 6:00; under that, a quiet private place suffices — 7.2). The break excludes time for immediate post-flight and pre-flight duties. Breaks under 3:00 earn no extension. Every extended duty exceeds 11 hours, so 8(2)(a)(iii) applies — this app applies 11:00 rest after such duties (an app convention; the regulation defers the figure to the operator's scheme).</div>
+      <div class="note" style="margin-top:14px;">Split duty: with no end of duty entered, the table predicts forward — "On break by" is the latest time the break must start for that option to leave usable duty afterwards (start + 12:00 − break÷2), and "Max duty end" is start + 12:00 + break÷2. With an end of duty entered, the table shows the concrete split from that end. 🛏 marked from 6:00 breaks up (the regulation requires a bed for breaks over 6:00; under that, a quiet private place suffices — 7.2). The break excludes time for immediate post-flight and pre-flight duties. Breaks under 3:00 earn no extension. Every extended duty exceeds 11 hours, so 8(2)(a)(iii) applies — this app applies 11:00 rest after such duties (an app convention; the regulation defers the figure to the operator's scheme).</div>
       <div class="note" style="margin-top:10px;">Covers Part 127 Table 1 (two-pilot helicopter FDP), 7.2 split duty extension, and 8(2)(a) rest periods. "Local night" is auto-detected using SACAA's own definition (Part 127.1, inserted by SA-CATS 2/2025, w.e.f. 20 June 2025): a period of 8 hours falling between 22:00 and 08:00 local time.</div>
     </div>
   </details>
@@ -494,7 +501,11 @@
   const startDutyEl = document.getElementById('startDuty');
   const actualDutyEndEl = document.getElementById('actualDutyEnd');
 
-  const normalDutyEndEl = document.getElementById('normalDutyEnd');
+  const normalDutyEndDateEl = document.getElementById('normalDutyEndDate');
+  const normalDutyEndTimeEl = document.getElementById('normalDutyEndTime');
+  const maxEndBlockEl = document.getElementById('maxEndBlock');
+  const resultHeadingEl = document.getElementById('resultHeading');
+  const splitHeadingEl = document.getElementById('splitHeading');
   const maxFlightReadoutEl = document.getElementById('maxFlightReadout');
   const maxFlightLabelEl = document.getElementById('maxFlightLabel');
   const breakGridWrapEl = document.getElementById('breakGridWrap');
@@ -627,7 +638,11 @@
     const start = parseDT(startDutyEl);
 
     if (!start){
-      normalDutyEndEl.textContent = '—';
+      normalDutyEndDateEl.textContent = '—';
+      normalDutyEndTimeEl.textContent = '—:—';
+      maxEndBlockEl.style.display = 'block';
+      resultHeadingEl.style.display = 'block';
+      splitHeadingEl.textContent = 'Rest taken — split duty';
       maxFlightReadoutEl.textContent = '—';
       maxFlightLabelEl.textContent = 'From local start time band';
       breakGridWrapEl.innerHTML = '';
@@ -643,7 +658,9 @@
     }
 
     const theoreticalEnd = new Date(start.getTime() + 12 * 3600 * 1000);
-    normalDutyEndEl.textContent = fmtDateTime(theoreticalEnd).dateStr + ' ' + fmtDateTime(theoreticalEnd).timeStr;
+    const theoEndFmt = fmtDateTime(theoreticalEnd);
+    normalDutyEndDateEl.textContent = theoEndFmt.dateStr;
+    normalDutyEndTimeEl.textContent = theoEndFmt.timeStr;
 
     // Table 1, two pilots: max flight time 8h for local start 06:00–17:59, 7h for 18:00–05:59.
     const startMins = start.getHours() * 60 + start.getMinutes();
@@ -653,6 +670,9 @@
 
     // Normal duty end: actual if entered (and valid), else the 12h theoretical max.
     const actualEnd = parseDT(actualDutyEndEl);
+    maxEndBlockEl.style.display = actualEnd ? 'none' : 'block';
+    resultHeadingEl.style.display = actualEnd ? 'none' : 'block';
+    splitHeadingEl.textContent = actualEnd ? 'Split duty — break length options' : 'Rest taken — split duty';
     let dutyEnd;
     if (actualEnd){
       if (actualEnd <= start){
@@ -699,39 +719,50 @@
       { cls: 'rest', hours: (nextDutyStart - dutyEnd) / 3600000, label: 'REST' }
     ]);
 
-    // Split-duty break-length table — only makes sense if duty 1 stopped short of the
-    // 12h max (i.e. an actual duty end was entered). You can't split a duty that already
-    // ran the full legal 12 hours.
-    if (!actualEnd){
-      breakGridWrapEl.innerHTML = '<div class="note">Enter an actual duty end above to see split duty options — duty 1 has to stop short of the 12:00 max for a split to be possible.</div>';
-    } else {
-      const breakOptions = [4, 5, 6, 7, 8, 9];
-      let rows = '';
-      breakOptions.forEach(breakHours => {
-        const start2 = new Date(dutyEnd.getTime() + breakHours * 3600 * 1000);
-        const extensionHours = breakHours / 2; // all options are within the 3–10h band
-        const dutyEndFinal = new Date(start.getTime() + (12 + extensionHours) * 3600 * 1000);
+    // Split-duty break-length table.
+    // The extension depends only on break length, so max duty end is predictable from
+    // the start time alone: start + 12 + break/2. For a split to be usable, the break
+    // must START before (start + 12 - break/2) — otherwise duty 2 has no length. That
+    // "latest break start" is the forward-planning number for use mid-job.
+    const breakOptions = [4, 5, 6, 7, 8, 9];
+    let rows = '';
+    const predictive = !actualEnd;
 
+    breakOptions.forEach(breakHours => {
+      const extensionHours = breakHours / 2; // all options are within the 3–10h band
+      const dutyEndFinal = new Date(start.getTime() + (12 + extensionHours) * 3600 * 1000);
+
+      // 7.2: a bed is required for breaks over 6h (quiet private place suffices up to 6h).
+      // This app marks the bed from 6:00 up — slightly stricter than the text, by choice.
+      const bedReq = breakHours >= 6;
+      const bedTag = bedReq ? ' <span style="color:var(--text-dim); font-weight:400;">🛏</span>' : '';
+
+      if (predictive){
+        rows += '<tr>' +
+          '<td class="teal">' + breakHours + ':00' + bedTag + '</td>' +
+          '<td class="amber">' + fmtShort(dutyEndFinal, start) + '</td>' +
+          '</tr>';
+      } else {
+        const start2 = new Date(dutyEnd.getTime() + breakHours * 3600 * 1000);
         // If duty 2 would start at or after the extended duty end, there's no usable
         // second segment — the row is not a viable split.
         const invalid = start2 >= dutyEndFinal;
-
-        // 7.2: a bed is required for breaks over 6h (quiet private place suffices up to 6h).
-        // This app marks the bed from 6:00 up — slightly stricter than the text, by choice.
-        const bedReq = breakHours >= 6;
-
         rows += '<tr class="' + (invalid ? 'row-invalid' : '') + '">' +
           '<td class="dim">' + fmtShort(start2, start) + '</td>' +
-          '<td class="amber">' + breakHours + ':00' + (bedReq ? ' <span style="color:var(--text-dim); font-weight:400;">🛏</span>' : '') + '</td>' +
-          '<td class="teal">' + fmtShort(dutyEndFinal, start) + '</td>' +
+          '<td class="teal">' + breakHours + ':00' + bedTag + '</td>' +
+          '<td class="amber">' + fmtShort(dutyEndFinal, start) + '</td>' +
           '</tr>';
-      });
+      }
+    });
 
-      breakGridWrapEl.innerHTML =
+    breakGridWrapEl.innerHTML = predictive
+      ? '<div class="note" style="margin-bottom:8px;">If a rest break is taken during the duty, the duty end extends by half the break.</div>' +
         '<div class="table-scroll"><table class="break-grid"><thead><tr>' +
+        '<th>Break</th><th>Duty end</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<div class="table-scroll"><table class="break-grid"><thead><tr>' +
         '<th>Start duty 2</th><th>Break</th><th>Duty end</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-    }
   }
 
   startDutyEl.value = nowLocalISO();
