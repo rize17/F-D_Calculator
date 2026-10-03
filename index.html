@@ -54,6 +54,14 @@
     margin-bottom: 20px;
   }
 
+  .header .app-version {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+
   .eyebrow {
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
@@ -252,6 +260,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     background: var(--panel-raised);
     border: 1px solid var(--line);
     border-radius: 6px;
@@ -261,12 +271,20 @@
   .readout .rlabel {
     font-size: 13px;
     color: var(--text-dim);
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
+  /* Never let the value shrink into or overlap the label — on narrow screens it
+     wraps to its own line and stays right-aligned instead. */
   .readout .rvalue {
     font-family: 'JetBrains Mono', monospace;
     font-size: 15px;
     font-weight: 700;
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+    text-align: right;
   }
 
   .rvalue.amber { color: var(--amber); }
@@ -423,7 +441,10 @@
 <div class="device">
 
   <div class="header" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
-    <h1 style="margin:0;">F&amp;D Calculator</h1>
+    <div style="display:flex; align-items:baseline; gap:8px; min-width:0;">
+      <h1 style="margin:0;">F&amp;D Calculator</h1>
+      <span class="app-version" id="appVersion"></span>
+    </div>
     <button id="resetBtn" type="button" style="flex-shrink:0; background:var(--panel-raised); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; padding:8px 12px; cursor:pointer;">Reset</button>
   </div>
 
@@ -498,6 +519,9 @@
 
 <script>
 (function(){
+  const APP_VERSION = 'v1';
+  document.getElementById('appVersion').textContent = APP_VERSION;
+
   const startDutyEl = document.getElementById('startDuty');
   const actualDutyEndEl = document.getElementById('actualDutyEnd');
 
@@ -612,8 +636,12 @@
     const tenHourEnd = new Date(dutyEnd.getTime() + 10 * 3600 * 1000);
     const nineHourEnd = new Date(dutyEnd.getTime() + 9 * 3600 * 1000);
 
-    // Scan minute-by-minute from +9h up to +10h for the first moment (i) is satisfied.
-    for (let t = nineHourEnd.getTime(); t < tenHourEnd.getTime(); t += 60000){
+    // Scan minute-by-minute from +9h up to and including +10h for the first moment (i)
+    // is satisfied. The bound is inclusive: when the 8h of night coverage lands exactly
+    // at +10h (e.g. duty ending 20:00 → 22:00–06:00), the rest period genuinely does
+    // include a local night, so (i) is what's being satisfied — an exclusive bound gave
+    // the same next-duty time via the (ii) fallback but reported "no local night".
+    for (let t = nineHourEnd.getTime(); t <= tenHourEnd.getTime(); t += 60000){
       if (nightOverlapHours(dutyEnd, new Date(t)) >= 8){
         const restHours = (t - dutyEnd.getTime()) / 3600000;
         return { nextStart: new Date(t), restHours, localNight: true };
@@ -711,7 +739,9 @@
 
     resultNote.textContent = extendedRest
       ? '11:00 rest applied because this duty exceeds 11 hours — 127.8(2)(a)(iii) requires additional rest beyond the standard 9/10h; the 11:00 figure is this app\'s convention, not a SACAA number.'
-      : fmtHM(restHours) + ' minimum rest (Part 127.8(2)(a)) applied after a ' + fmtHM(actualDutyHours) + ' two-pilot duty period' + (actualEnd ? ' (actual)' : ' (12:00 max, Table 1)') + ' — local night per SACAA\'s Part 127.1 definition.';
+      : fmtHM(restHours) + ' minimum rest (Part 127.8(2)(a)) applied after a ' + fmtHM(actualDutyHours) + ' two-pilot duty period' + (actualEnd ? ' (actual)' : ' (12:00 max, Table 1)') + ' — ' + (localNight
+          ? '8(2)(a)(i): at least 9 hours including a local night (SACAA Part 127.1 — 8 hours falling between 22:00 and 08:00).'
+          : '8(2)(a)(ii): 10 consecutive hours, as no local night is reached within 9–10 hours of this duty end.');
 
     const dutyHours = (dutyEnd - start) / 3600000;
     setGauge([
