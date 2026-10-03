@@ -27,10 +27,12 @@ Two inputs — **start of duty** and (optionally) **end of duty** — produce:
   duty, that's a full rest period" rather than extrapolated).
 - **8(2)(a)(i)/(ii)** — 9h rest if it includes a local night, else 10h. The app
   computes the **true legal minimum**, not just a fixed 9-or-10 branch: it scans
-  from duty-end+9h to duty-end+10h for the earliest moment 8h of night coverage
-  (SACAA Part 127.1's definition) is achieved, since "at least nine hours
-  including a local night" can beat a flat 10h by up to 59 minutes in some cases
-  (e.g. duty ending 20:30 → 9:30 rest → 06:00, not 06:30 under a naive branch).
+  from duty-end+9h to duty-end+10h **inclusive** for the earliest moment 8h of
+  night coverage (SACAA Part 127.1's definition) is achieved, since "at least
+  nine hours including a local night" can beat a flat 10h by up to 59 minutes in
+  some cases (e.g. duty ending 20:30 → 9:30 rest → 06:00, not 06:30 under a
+  naive branch). The upper bound of that scan **must stay inclusive** — see the
+  boundary-case gotcha below.
 - **"Local night" definition** — SACAA Part 127.1 (inserted by SA-CATS 2/2025,
   w.e.f. 20 June 2025): a period of 8 hours falling between 22:00 and 08:00 local
   time. This is a **confirmed SACAA definition**, not an EASA-borrowed assumption
@@ -75,6 +77,14 @@ Two inputs — **start of duty** and (optionally) **end of duty** — produce:
   Android/desktop respect it. The "now" default value is rounded to the
   nearest 10 minutes regardless, so the convention holds even where the picker
   itself doesn't enforce it.
+- **Version number**: `const APP_VERSION` at the top of the IIFE, rendered into
+  the header next to the title — same convention as the Mission Timer app (a
+  plain incrementing `v<n>`, not semver). Bump it on any user-visible change;
+  it's the only way to tell from a phone whether a cached copy is current.
+- **`.readout` rows** are `flex-wrap` with the value `flex: 0 0 auto` and
+  `margin-left: auto`. Don't remove that — without it the value shrinks into
+  the label and the two overlap on narrow screens (seen with "Detected from
+  duty end + rest window" against "No · 10:00 rest" at 375px).
 - **Color convention**: amber = duty end values, white = next-duty-start values,
   teal = break/rest durations. Applied consistently across the result panel,
   the split table, and the gauge.
@@ -82,12 +92,32 @@ Two inputs — **start of duty** and (optionally) **end of duty** — produce:
   sums overlap between an arbitrary time window and the recurring 22:00–08:00
   corridor across as many days as needed. Reused both for the 9h-rest check and
   (previously) an 8(2)(b) look-back panel that's since been removed.
+- **The 9–10h scan's upper bound is inclusive, and that matters.** The loop in
+  `computeRestForDutyEnd` originally ran `t < tenHourEnd`, so the moment
+  *exactly* at duty-end+10h was never tested. For a duty ending at 20:00 the
+  rest window 20:00→06:00 contains exactly 8h of the 22:00–08:00 corridor
+  (22:00→06:00) and nothing earlier does — at 9h59m coverage is 7:59. So the
+  scan found nothing, fell through to the flat-10h fallback, and the UI
+  reported "local night: No" for a rest period that plainly contains one.
+  The **computed time was never wrong** (the fallback returns the same instant),
+  only the attribution — which is exactly why it survived earlier audits that
+  checked next-duty times rather than the reasoning behind them. 20:00 is the
+  only duty-end on the 10-minute input grid that hits this. Fixed to `t <=`;
+  when touching this loop, re-check that the flag still matches actual night
+  coverage across a full 1440-minute sweep, not just that the times look right.
 - The app was **audited repeatedly** by extracting its actual `<script>` block
   and driving it through a stubbed DOM in Node, then checking outputs against
   independently-written reference implementations (not just re-reading the same
   code). Worth doing this again after any non-trivial logic change — it caught
   a real bug (the naive 9-vs-10h branch missing the "at least" in the
-  regulation's wording).
+  regulation's wording), and later the boundary case above.
+  Two practical notes for doing it: the whole script block is wrapped in an
+  **IIFE**, so nothing is reachable from a browser console — you have to pull
+  the function text out of the file and re-evaluate it. And **Node isn't
+  installed on the dev machine**; fetching `index.html`, extracting the
+  functions by brace-matching and `new Function`-ing them inside the page works
+  just as well, and has the advantage of running in the same engine and
+  timezone the app actually uses.
 
 ## UI/UX decisions worth knowing
 
