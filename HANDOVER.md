@@ -33,11 +33,32 @@ Two inputs — **start of duty** and (optionally) **end of duty** — produce:
   some cases (e.g. duty ending 20:30 → 9:30 rest → 06:00, not 06:30 under a
   naive branch). The upper bound of that scan **must stay inclusive** — see the
   boundary-case gotcha below.
-- **"Local night" definition** — SACAA Part 127.1 (inserted by SA-CATS 2/2025,
-  w.e.f. 20 June 2025): a period of 8 hours falling between 22:00 and 08:00 local
-  time. This is a **confirmed SACAA definition**, not an EASA-borrowed assumption
-  (an earlier version of this app mistakenly treated it as undefined — checked
-  and corrected against the actual gazetted text).
+- **"Local night" definition — 22:00 to 08:00. Verified against the gazetted
+  text; do not "correct" it to 06:00.** SA-CATS 2 of 2025, clause 8, inserts
+  into SA-CATS 121 technical standard 121.02.13 section 1, after the definition
+  of "local day":
+
+  > "local night" means a period of eight (8) hours falling between 22h00 and
+  > 08h00 local time in terms of flight duty periods
+
+  **The trap:** pre-2025 SACAA material (e.g. the 2014 CAR/CATS 121.02.13
+  FTDPS circulating online) gives **22:00 to 06:00**. That is superseded — this
+  definition was *inserted* by the 2025 amendment. Anyone who checks this
+  against a search result rather than the gazette will find the 06:00 figure,
+  conclude the app is an hour wrong, and be wrong themselves. This has now
+  happened twice. The 22:00–08:00 figure also coincides with EASA ORO.FTL.105
+  and UK CAP 371, which makes it *look* EASA-borrowed; it isn't — SACAA's own
+  2025 wording matches.
+
+  **If it were 06:00 instead**, 120 duty-end minutes (duty ending ~22:00 to
+  midnight) would shift by up to 60 minutes, in the unsafe direction — the app
+  would permit an earlier next-duty start than the regulation does. Worth
+  knowing as the blast radius if this ever genuinely changes.
+
+  **One loose end:** the clause above amends SA-CATS **121** (aeroplanes). This
+  app is Part **127** (helicopters). Confirm whether SA-CATS 2 of 2025 carries a
+  parallel insertion into SA-CATS 127, or whether 127 picks the definition up by
+  reference, and record the answer here.
 - **8(2)(a)(iii)** — duty exceeding 11h needs additional rest "per the operator's
   scheme" (no number given in the regulation). **App convention: flat 11:00
   rest** applied whenever duty > 11h, since the user has no operator scheme and
