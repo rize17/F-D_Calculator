@@ -54,6 +54,17 @@
     margin-bottom: 20px;
   }
 
+  /* One-line reason under the big readout — says which constraint actually set
+     the time, so the surprising "later duty end, same next start" case explains
+     itself instead of having to be reconstructed from the Details section. */
+  .why-line {
+    margin-top: 8px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-dim);
+  }
+  .why-line .pin { color: var(--teal); font-weight: 600; }
+
   .header .app-version {
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
@@ -476,6 +487,7 @@
       <span class="date-part" id="nextDutyDate">—</span>
       <span id="nextDutyTime">—:—</span>
     </div>
+    <div class="why-line" id="whyLine"></div>
   </div>
 
   <div class="panel" id="breakGridPanel">
@@ -519,7 +531,7 @@
 
 <script>
 (function(){
-  const APP_VERSION = 'v1';
+  const APP_VERSION = 'v2';
   document.getElementById('appVersion').textContent = APP_VERSION;
 
   const startDutyEl = document.getElementById('startDuty');
@@ -539,6 +551,7 @@
   const nextDutyDateEl = document.getElementById('nextDutyDate');
   const nextDutyTimeEl = document.getElementById('nextDutyTime');
   const resultTitleEl = document.getElementById('resultTitle');
+  const whyLineEl = document.getElementById('whyLine');
   const secondaryLineEl = document.getElementById('secondaryLine');
   const resultNote = document.getElementById('resultNote');
   const warnBox = document.getElementById('warnBox');
@@ -677,6 +690,7 @@
       nextDutyDateEl.textContent = '—';
       nextDutyTimeEl.textContent = '—:—';
       resultTitleEl.textContent = 'Earliest next duty start';
+      whyLineEl.textContent = '';
       secondaryLineEl.textContent = '';
       localNightReadout.textContent = '—';
       localNightReadout.className = 'rvalue';
@@ -732,6 +746,25 @@
     localNightReadout.className = 'rvalue ' + (localNight ? 'teal' : 'amber');
 
     resultTitleEl.textContent = 'Earliest next duty start';
+
+    // Which constraint actually set this time? Three cases, and it's the middle
+    // one that surprises people: once the night is what's binding, finishing duty
+    // earlier doesn't buy an earlier start, because the 22:00–08:00 corridor is
+    // fixed to the clock — 8h of it cannot complete before 06:00 however early
+    // you finish. That's why e.g. 20:00 and 21:00 duty ends both give 06:00.
+    const nextTimeStr = fmtDateTime(nextDutyStart).timeStr;
+    if (extendedRest){
+      whyLineEl.innerHTML = 'End of duty + 11:00 — this app\'s convention for duty over 11 hours.';
+    } else if (localNight && restHours > 9){
+      whyLineEl.innerHTML = 'Held at <span class="pin">' + nextTimeStr + '</span> — 8:00 of local night can\'t complete any earlier, '
+        + 'so the rest stretches to ' + fmtHM(restHours) + ' rather than the 9:00 minimum. '
+        + 'Finishing duty earlier won\'t move this time.';
+    } else if (localNight){
+      whyLineEl.innerHTML = 'End of duty + 9:00 — the minimum, and it already contains a local night.';
+    } else {
+      whyLineEl.innerHTML = 'End of duty + 10:00 — no local night is reached within 9–10 hours of finishing.';
+    }
+
     const primary = fmtDateTime(nextDutyStart);
     nextDutyDateEl.textContent = primary.dateStr;
     nextDutyTimeEl.textContent = primary.timeStr;
